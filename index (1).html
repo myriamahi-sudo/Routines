@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carnet des routines</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Georgia,serif;background:#F5F0EB;color:#2C2C2C;min-height:100vh;padding-bottom:80px}
+input[type=text]{width:100%;padding:10px 12px;border:1.5px solid #DDD8D0;background:#FAF7F4;font-size:14px;color:#2C2C2C;outline:none;font-family:Georgia,serif;box-sizing:border-box}
+.label{font-size:11px;color:#888;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.08em}
+.btn-dark{background:#2C2C2C;color:#F5F0EB;border:none;padding:11px;font-size:12px;letter-spacing:0.08em;cursor:pointer;font-family:Georgia,serif}
+.btn-light{background:none;border:1.5px solid #DDD8D0;padding:11px;font-size:12px;letter-spacing:0.08em;cursor:pointer;color:#888;font-family:Georgia,serif}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:flex-end;justify-content:center;z-index:100}
+.modal-box{background:#F5F0EB;width:100%;max-width:480px;padding:24px 20px 36px;border-top:1px solid #DDD8D0;max-height:85vh;overflow-y:auto}
+.nav-btn{flex:1;padding:12px 0;background:none;border:none;border-bottom:2px solid transparent;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;font-family:Georgia,serif;color:#999}
+.nav-btn.active{border-bottom-color:#2C2C2C;color:#2C2C2C}
+.day-btn{width:100%;aspect-ratio:1;background:#F5F0EB;border:1.5px solid #DDD8D0;color:#2C2C2C;font-size:11px;cursor:pointer;transition:all 0.12s;font-family:Georgia,serif}
+.day-btn.checked{background:#2C2C2C;color:#F5F0EB;border-color:#2C2C2C}
+.day-btn.istoday{background:#EAE5DE;border-color:#2C2C2C}
+.day-btn:disabled{opacity:0.3;cursor:default}
+.freq-btn{padding:6px 12px;font-size:12px;cursor:pointer;font-family:Georgia,serif;background:none;color:#666;border:1.5px solid #DDD8D0}
+.freq-btn.active{background:#2C2C2C;color:#F5F0EB;border-color:#2C2C2C}
+.cat-btn{padding:6px 12px;font-size:12px;cursor:pointer;font-family:Georgia,serif;color:#2C2C2C;border:1.5px solid #DDD8D0;background:none}
+.icon-btn{width:36px;height:36px;font-size:16px;cursor:pointer;background:#FAF7F4;color:#2C2C2C;border:1.5px solid #DDD8D0;display:flex;align-items:center;justify-content:center}
+.icon-btn.active{background:#2C2C2C;color:#F5F0EB;border-color:#2C2C2C}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const FREQS=["quotidien","hebdo","2×/sem","3×/sem","selon envie"];
+const ICON_PALETTE=["⌂","◎","✦","♡","◈","○","★","◆","▲","●","☀","☁","☂","❄","🌿","🌸","🍃","🌙","⚡","🔥","♪","✿","❋","⊕","⊗","◉","▣","⬡","⬢","✤","🧘","🏃","💪","🛏","🪥","💆","✏","📖","🎨","🧹","🪴","🐾","🍵","💧","🧴","🧵","🎵","📝","🛁","🌾"];
+const PASTEL_COLORS=["#B5C4B1","#D4B8A8","#C4B8D4","#B8CED4","#D4CDB8","#D4D0C8","#C8B8D4","#B8D4C8","#D4B8C8","#C8D4B8","#D4C8B8","#B8C8D4","#E8D5C4","#C4D5C4","#D5C4D5","#C4D5D5","#D5D5C4","#D0C8C0"];
+const DEFAULT_CATS=[{id:"maison",name:"maison",icon:"⌂",color:"#B5C4B1"},{id:"soin",name:"soin",icon:"◎",color:"#D4B8A8"},{id:"créativité",name:"créativité",icon:"✦",color:"#C4B8D4"},{id:"famille",name:"famille",icon:"♡",color:"#B8CED4"},{id:"mouvement",name:"mouvement",icon:"◈",color:"#D4CDB8"},{id:"autre",name:"autre",icon:"○",color:"#D4D0C8"}];
+const ROUTINES_DEF=[{id:1,name:"Plier le linge",freq:"quotidien",category:"maison"},{id:2,name:"Ménage Clean Mama",freq:"quotidien",category:"maison"},{id:3,name:"Hydratation peau corps",freq:"quotidien",category:"soin"},{id:4,name:"Nettoyage interdentaire",freq:"quotidien",category:"soin"},{id:5,name:"Soin du visage",freq:"quotidien",category:"soin"},{id:6,name:"Soin des cheveux",freq:"hebdo",category:"soin"},{id:7,name:"Création personnelle",freq:"quotidien",category:"créativité"},{id:8,name:"Lecture avec Selma",freq:"quotidien",category:"famille"},{id:9,name:"Moments créatifs avec Selma",freq:"quotidien",category:"famille"},{id:10,name:"Course à pied",freq:"3×/sem",category:"mouvement"},{id:11,name:"Renforcement musculaire",freq:"2×/sem",category:"mouvement"},{id:12,name:"Mobilité",freq:"quotidien",category:"mouvement"}];
+
+const DISRUPTION_REASONS=["Maladie","Voyage","Surcharge de travail","Événement familial","Fatigue exceptionnelle","Autre"];
+const LS_KEY="routines-v1";
+
+function save(s){
+  try{localStorage.setItem(LS_KEY,JSON.stringify({logs:s.logs,activeIds:s.activeIds,startDates:s.startDates,disruptions:s.disruptions,disruptionDetails:s.disruptionDetails,queue:s.queue,routines:s.routines,categories:s.categories}));}catch(e){}
+}
+function loadData(){
+  try{const d=localStorage.getItem(LS_KEY);if(d)return JSON.parse(d);}catch(e){}
+  return null;
+}
+
+function getDayKey(d){return d.toISOString().slice(0,10);}
+function getWeekDays(offset){
+  const days=[],ref=new Date();ref.setDate(ref.getDate()+offset*7);
+  const d=new Date(ref);d.setDate(d.getDate()-d.getDay()+1);
+  for(let i=0;i<7;i++){days.push(new Date(d));d.setDate(d.getDate()+1);}
+  return days;
+}
+function getLast42(){const days=[],t=new Date();for(let i=41;i>=0;i--){const d=new Date(t);d.setDate(t.getDate()-i);days.push(getDayKey(d));}return days;}
+function computeStats(logs,rid,startDate){
+  const start=new Date(startDate),today=new Date();
+  const totalDays=Math.floor((today-start)/86400000)+1;
+  const last28=[];for(let i=27;i>=0;i--){const d=new Date(today);d.setDate(today.getDate()-i);last28.push(getDayKey(d));}
+  const checkedTotal=Object.entries(logs).filter(([k,v])=>k>=getDayKey(start)&&v[rid]).length;
+  const checked28=last28.filter(k=>logs[k]&&logs[k][rid]).length;
+  const rate28=totalDays>=28?Math.round((checked28/28)*100):null;
+  const rateTotal=totalDays>0?Math.round((checkedTotal/totalDays)*100):0;
+  return{totalDays,rate28,rateTotal};
+}
+function isAnchored(stats,dis){return stats.totalDays>=42&&stats.rate28!==null&&stats.rate28>=85&&dis>=1;}
+function getCat(cats,catId){return cats.find(c=>c.id===catId)||{icon:"○",color:"#D4D0C8",name:catId};}
+
+const today=getDayKey(new Date());
+
+// ── State ──
+const saved=loadData();
+let S={
+  logs:saved?.logs||{},
+  activeIds:saved?.activeIds||[],
+  startDates:saved?.startDates||{},
+  disruptions:saved?.disruptions||{},
+  disruptionDetails:saved?.disruptionDetails||{},
+  queue:saved?.queue||(ROUTINES_DEF.map(r=>r.id)),
+  routines:saved?.routines||ROUTINES_DEF,
+  categories:saved?.categories||DEFAULT_CATS,
+  view:"today",
+  modal:null,
+  weekOffsets:{}
+};
+
+function setState(fn){fn(S);save(S);render();}
+
+// ── DOM helpers ──
+function h(tag,attrs,...children){
+  const el=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs||{})){
+    if(k.startsWith("on")&&typeof v==="function")el.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="style"&&typeof v==="object")Object.assign(el.style,v);
+    else if(k==="class")el.className=v;
+    else if(k==="disabled"&&v)el.disabled=true;
+    else if(v!==null&&v!==false)el.setAttribute(k,v);
+  }
+  for(const c of children.flat(Infinity)){
+    if(c==null||c===false)continue;
+    el.appendChild(typeof c==="string"?document.createTextNode(c):c);
+  }
+  return el;
+}
+
+// ── Actions ──
+function toggleDay(rid,key){setState(s=>{s.logs={...s.logs,[key]:{...(s.logs[key]||{}),[rid]:!s.logs[key]?.[rid]}};});}
+function activateRoutine(id){setState(s=>{if(s.activeIds.includes(id))return;s.startDates={...s.startDates,[id]:today};s.activeIds=[...s.activeIds,id];s.queue=s.queue.filter(q=>q!==id);});}
+function archiveRoutine(id){setState(s=>{s.activeIds=s.activeIds.filter(x=>x!==id);});}
+function deactivateToQueue(id){setState(s=>{s.activeIds=s.activeIds.filter(x=>x!==id);s.queue=[id,...s.queue];});}
+function markDisruption(id,reason){setState(s=>{
+  s.disruptions={...s.disruptions,[id]:(s.disruptions[id]||0)+1};
+  const details=s.disruptionDetails[id]||[];
+  s.disruptionDetails={...s.disruptionDetails,[id]:[...details,{reason,date:getDayKey(new Date())}]};
+});}
+function undoDisruption(id){setState(s=>{if(!s.disruptions[id])return;s.disruptions={...s.disruptions,[id]:s.disruptions[id]-1};const details=[...(s.disruptionDetails[id]||[])];details.pop();s.disruptionDetails={...s.disruptionDetails,[id]:details};});}
+function updateRoutine(id,fields){setState(s=>{s.routines=s.routines.map(r=>r.id===id?{...r,...fields}:r);});}
+function addNewRoutine(fields){setState(s=>{const newId=Math.max(...s.routines.map(r=>r.id),0)+1;s.routines=[...s.routines,{id:newId,...fields}];s.queue=[...s.queue,newId];});}
+function removeFromQueue(id){setState(s=>{s.queue=s.queue.filter(q=>q!==id);});}
+function moveUp(id){setState(s=>{const i=s.queue.indexOf(id);if(i<=0)return;const nq=[...s.queue];[nq[i-1],nq[i]]=[nq[i],nq[i-1]];s.queue=nq;});}
+function moveDown(id){setState(s=>{const i=s.queue.indexOf(id);if(i===s.queue.length-1)return;const nq=[...s.queue];[nq[i+1],nq[i]]=[nq[i],nq[i+1]];s.queue=nq;});}
+function addCategory(fields){setState(s=>{const newId=fields.name.toLowerCase().replace(/\s+/g,"-")+"-"+Date.now();s.categories=[...s.categories,{id:newId,...fields}];});}
+function updateCategory(id,fields){setState(s=>{s.categories=s.categories.map(c=>c.id===id?{...c,...fields}:c);});}
+function deleteCategory(id){setState(s=>{s.categories=s.categories.filter(c=>c.id!==id);});}
+function setModal(m){S.modal=m;render();}
+function setView(v){S.view=v;render();}
+
+// ── Modal wrapper ──
+function renderModal(title,content,onClose){
+  const bg=h("div",{class:"modal-bg",onClick:onClose});
+  const box=h("div",{class:"modal-box",onClick:e=>e.stopPropagation()},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}},
+      h("span",{style:{fontSize:"11px",textTransform:"uppercase",letterSpacing:"0.1em",color:"#888"}},title),
+      h("button",{style:{background:"none",border:"none",fontSize:"22px",color:"#AAA",cursor:"pointer"},onClick:onClose},"×")
+    ),...content
+  );
+  bg.appendChild(box);
+  return bg;
+}
+
+// ── Routine Form ──
+function renderRoutineForm(initial,saveLabel,onSave,onCancel){
+  let name=initial?.name||"",freq=initial?.freq||"quotidien",category=initial?.category||S.categories[0]?.id||"autre";
+  const nameIn=h("input",{type:"text",value:name,placeholder:"Nom de la routine",onInput:e=>name=e.target.value});
+  const freqWrap=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
+  const catWrap=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
+  function refreshFreq(){freqWrap.innerHTML="";FREQS.forEach(f=>freqWrap.appendChild(h("button",{class:"freq-btn"+(freq===f?" active":""),onClick:()=>{freq=f;refreshFreq();}},f)));}
+  function refreshCat(){catWrap.innerHTML="";S.categories.forEach(c=>{const b=h("button",{class:"cat-btn",style:{borderColor:category===c.id?c.color:"#DDD8D0",background:category===c.id?c.color:"none"},onClick:()=>{category=c.id;refreshCat();}},c.icon+" "+c.name);catWrap.appendChild(b);});}
+  refreshFreq();refreshCat();
+  return[
+    h("div",{style:{marginBottom:"14px"}},h("label",{class:"label"},"Nom"),nameIn),
+    h("div",{style:{marginBottom:"14px"}},h("label",{class:"label"},"Fréquence"),freqWrap),
+    h("div",{style:{marginBottom:"20px"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}},
+        h("label",{class:"label",style:{marginBottom:"0"}},"Catégorie"),
+        h("button",{style:{background:"none",border:"none",fontSize:"11px",color:"#AAA",cursor:"pointer",textDecoration:"underline",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"manageCategories"})},"Gérer")
+      ),catWrap
+    ),
+    h("div",{style:{display:"flex",gap:"8px"}},
+      h("button",{class:"btn-light",style:{flex:"1"},onClick:onCancel},"Annuler"),
+      h("button",{class:"btn-dark",style:{flex:"2"},onClick:()=>{if(name.trim())onSave({name:name.trim(),freq,category});}},saveLabel)
+    )
+  ];
+}
+
+// ── Category Form ──
+function renderCategoryForm(initial,saveLabel,onSave,onCancel){
+  let name=initial?.name||"",icon=initial?.icon||"○",color=initial?.color||"#D4D0C8";
+  const nameIn=h("input",{type:"text",value:name,placeholder:"Nom de la catégorie",onInput:e=>{name=e.target.value;previewName.textContent=name||"Nom";}});
+  const preview=h("div",{style:{width:"32px",height:"32px",background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px"}},icon);
+  const previewName=h("span",{style:{fontSize:"13px",color:"#888"}},name||"Nom");
+  const emojiIn=h("input",{type:"text",value:icon,maxlength:"2",style:{width:"48px",padding:"6px",border:"1.5px solid #DDD8D0",background:"#FAF7F4",fontSize:"18px",textAlign:"center",outline:"none",fontFamily:"Georgia,serif"},onInput:e=>{icon=e.target.value.slice(-2)||"○";preview.textContent=icon;iconGrid.querySelectorAll("button").forEach(b=>b.className="icon-btn");}});
+  const iconGrid=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
+  ICON_PALETTE.forEach(ic=>{
+    const b=h("button",{class:"icon-btn"+(icon===ic?" active":""),onClick:()=>{icon=ic;emojiIn.value=ic;preview.textContent=ic;iconGrid.querySelectorAll("button").forEach(x=>x.className="icon-btn");b.className="icon-btn active";}},ic);
+    iconGrid.appendChild(b);
+  });
+  const colorGrid=h("div",{style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
+  PASTEL_COLORS.forEach(c=>{
+    const b=h("button",{style:{width:"32px",height:"32px",background:c,border:"none",cursor:"pointer",outline:color===c?"2.5px solid #2C2C2C":"2px solid transparent",outlineOffset:"2px"},onClick:()=>{color=c;preview.style.background=c;colorGrid.querySelectorAll("button").forEach(x=>x.style.outline="2px solid transparent");b.style.outline="2.5px solid #2C2C2C";}});
+    colorGrid.appendChild(b);
+  });
+  return[
+    h("div",{style:{marginBottom:"14px"}},h("label",{class:"label"},"Nom"),nameIn),
+    h("div",{style:{marginBottom:"14px"}},h("label",{class:"label"},"Icône"),iconGrid,
+      h("div",{style:{marginTop:"10px",display:"flex",alignItems:"center",gap:"8px"}},h("span",{style:{fontSize:"11px",color:"#AAA"}},"Ou tape un emoji :"),emojiIn)
+    ),
+    h("div",{style:{marginBottom:"20px"}},h("label",{class:"label"},"Couleur"),colorGrid,
+      h("div",{style:{marginTop:"10px",display:"flex",alignItems:"center",gap:"8px"}},h("span",{style:{fontSize:"11px",color:"#AAA"}},"Aperçu :"),preview,previewName)
+    ),
+    h("div",{style:{display:"flex",gap:"8px"}},
+      h("button",{class:"btn-light",style:{flex:"1"},onClick:onCancel},"Annuler"),
+      h("button",{class:"btn-dark",style:{flex:"2"},onClick:()=>{if(name.trim())onSave({name:name.trim(),icon,color});}},saveLabel)
+    )
+  ];
+}
+
+// ── Active Card ──
+function renderActiveCard(r){
+  const offset=S.weekOffsets[r.id]||0;
+  const weekDays=getWeekDays(offset);
+  const dayNames=["Lu","Ma","Me","Je","Ve","Sa","Di"];
+  const cat=getCat(S.categories,r.category);
+  const stats=computeStats(S.logs,r.id,S.startDates[r.id]);
+  const dis=S.disruptions[r.id]||0;
+  const anchored=isAnchored(stats,dis);
+  const weekLabel=`${weekDays[0].toLocaleDateString("fr-FR",{day:"numeric",month:"short"})} – ${weekDays[6].toLocaleDateString("fr-FR",{day:"numeric",month:"short"})}`;
+  const dayGrid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"3px",marginBottom:"12px"}});
+  weekDays.forEach((d,i)=>{
+    const key=getDayKey(d),isT=key===today,checked=S.logs[key]&&S.logs[key][r.id],future=key>today;
+    const cls="day-btn"+(checked?" checked":isT?" istoday":"");
+    const btn=h("button",{class:cls,disabled:future,onClick:()=>{if(!future)toggleDay(r.id,key);}},checked?"✓":String(d.getDate()));
+    dayGrid.appendChild(h("div",{style:{textAlign:"center"}},h("div",{style:{fontSize:"9px",color:"#AAA",marginBottom:"3px"}},dayNames[i]),btn));
+  });
+  return h("div",{style:{background:"#FAF7F4",border:"1px solid #DDD8D0",marginBottom:"12px",overflow:"hidden"}},
+    h("div",{style:{background:"#2C2C2C",color:"#F5F0EB",padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:"8px",flex:"1",minWidth:"0"}},
+        h("div",{style:{width:"24px",height:"24px",background:cat.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",flexShrink:"0"}},cat.icon),
+        h("div",{style:{minWidth:"0"}},
+          h("div",{style:{fontSize:"14px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},r.name),
+          h("div",{style:{fontSize:"10px",opacity:"0.5",marginTop:"1px"}},`${cat.name} · ${r.freq} · Jour ${stats.totalDays}`)
+        )
+      ),
+      h("div",{style:{display:"flex",gap:"6px",flexShrink:"0",marginLeft:"8px"}},
+        h("button",{style:{background:"none",border:"1px solid rgba(255,255,255,0.2)",color:"#F5F0EB",fontSize:"10px",padding:"3px 8px",cursor:"pointer",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"editRoutine",id:r.id})},"✎"),
+        anchored?h("button",{style:{background:"#B5C4B1",border:"none",color:"#2C2C2C",fontSize:"10px",padding:"3px 8px",cursor:"pointer",fontFamily:"Georgia,serif",whiteSpace:"nowrap"},onClick:()=>archiveRoutine(r.id)},"✦ Ancré"):null
+      )
+    ),
+    h("div",{style:{padding:"12px 14px"}},
+      h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}},
+        h("button",{style:{background:"none",border:"none",fontSize:"16px",cursor:"pointer",color:"#999",padding:"0 4px"},onClick:()=>{S.weekOffsets={...S.weekOffsets,[r.id]:offset-1};render();}},"‹"),
+        h("span",{style:{fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",color:"#AAA"}},weekLabel),
+        h("button",{style:{background:"none",border:"none",fontSize:"16px",cursor:"pointer",color:offset===0?"#DDD":"#999",padding:"0 4px"},onClick:()=>{if(offset<0){S.weekOffsets={...S.weekOffsets,[r.id]:offset+1};render();}}},"›")
+      ),
+      dayGrid,
+      h("div",{style:{display:"flex",gap:"12px",marginBottom:"10px",fontSize:"11px",color:"#888"}},
+        h("span",{style:{color:stats.totalDays>=42?"#2C2C2C":"#AAA"}},`📅 ${stats.totalDays}/42j`),
+        h("span",{style:{color:stats.rate28!==null&&stats.rate28>=85?"#2C2C2C":"#AAA"}},stats.rate28!==null?`${stats.rate28}% (28j)`:`${Math.min(stats.totalDays,27)}/28j`),
+        h("span",{style:{color:dis>=1?"#2C2C2C":"#AAA"}},`⚡ ${dis} perturbation${dis>1?"s":""}`)
+      ),
+      (()=>{
+        if(!dis)return null;
+        const wrap=h("div",{style:{marginBottom:"10px"}});
+        (S.disruptionDetails[r.id]||[]).forEach(d=>wrap.appendChild(h("div",{style:{fontSize:"11px",color:"#AAA",marginBottom:"2px"}},`· ${d.reason} (${d.date})`)));
+        return wrap;
+      })(),
+      h("div",{style:{display:"flex",gap:"6px"}},
+        h("button",{style:{flex:"1",padding:"7px",background:"none",border:"1.5px solid #DDD8D0",fontSize:"11px",cursor:"pointer",color:"#888",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"pickDisruption",id:r.id})},"+ Perturbation"),
+        h("button",{style:{padding:"7px 10px",background:"none",border:`1.5px solid ${dis?"#DDD8D0":"#EEE"}`,fontSize:"13px",cursor:dis?"pointer":"default",color:dis?"#888":"#CCC",fontFamily:"Georgia,serif"},disabled:!dis,onClick:()=>undoDisruption(r.id)},"↩"),
+        anchored?h("button",{style:{flex:"1",padding:"7px",background:"#B5C4B1",border:"none",fontSize:"11px",cursor:"pointer",color:"#2C2C2C",fontFamily:"Georgia,serif"},onClick:()=>archiveRoutine(r.id)},"Archiver →"):null
+      )
+    )
+  );
+}
+
+// ── Render ──
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  const activeRoutines=S.routines.filter(r=>S.activeIds.includes(r.id));
+  const archivedRoutines=S.routines.filter(r=>S.startDates[r.id]&&!S.activeIds.includes(r.id));
+  const anchoredCount=activeRoutines.filter(r=>isAnchored(computeStats(S.logs,r.id,S.startDates[r.id]),S.disruptions[r.id]||0)).length;
+
+  // Header
+  app.appendChild(h("div",{style:{background:"#2C2C2C",color:"#F5F0EB",padding:"24px 20px 18px"}},
+    h("div",{style:{fontSize:"11px",textTransform:"uppercase",opacity:"0.5",marginBottom:"4px",letterSpacing:"0.12em"}},"Carnet des routines"),
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+      h("div",{style:{fontSize:"18px"}},activeRoutines.length===0?"Aucune routine active":activeRoutines.length===1?"1 routine active":`${activeRoutines.length} routines actives`),
+      activeRoutines.length>0?h("div",{style:{fontSize:"11px",opacity:"0.5"}},`${anchoredCount} ancrée${anchoredCount>1?"s":""}`):"  "
+    )
+  ));
+
+  // Nav
+  const nav=h("div",{style:{display:"flex",borderBottom:"1px solid #DDD8D0",background:"#FAF7F4"}});
+  [["today","Actives"],["history","Historique"],["queue","File d'attente"]].forEach(([v,label])=>{
+    nav.appendChild(h("button",{class:"nav-btn"+(S.view===v?" active":""),onClick:()=>setView(v)},label+(v==="today"&&activeRoutines.length>0?` (${activeRoutines.length})`:"")));
+  });
+  app.appendChild(nav);
+
+  const content=h("div",{style:{padding:"16px"}});
+
+  // TODAY
+  if(S.view==="today"){
+    if(activeRoutines.length===0){
+      content.appendChild(h("div",{style:{textAlign:"center",padding:"40px 0",color:"#999",fontSize:"14px"}},
+        h("div",{style:{fontSize:"32px",marginBottom:"12px"}},"◎"),
+        document.createTextNode("Aucune routine active."),h("br",{})," ",
+        h("span",{style:{fontSize:"12px"}},"Active une routine depuis la file d'attente."),
+        h("br",{}),h("br",{}),
+        h("button",{style:{background:"#2C2C2C",color:"#F5F0EB",border:"none",padding:"10px 20px",fontSize:"12px",letterSpacing:"0.1em",cursor:"pointer",fontFamily:"Georgia,serif"},onClick:()=>setView("queue")},"Voir la file →")
+      ));
+    } else {
+      activeRoutines.forEach(r=>content.appendChild(renderActiveCard(r)));
+    }
+  }
+
+  // HISTORY
+  if(S.view==="history"){
+    const last42=getLast42();
+    if(activeRoutines.length>0){
+      content.appendChild(h("div",{style:{fontSize:"11px",textTransform:"uppercase",letterSpacing:"0.1em",color:"#888",marginBottom:"10px"}},"En cours"));
+      activeRoutines.forEach(r=>{
+        const s=computeStats(S.logs,r.id,S.startDates[r.id]);
+        const cat=getCat(S.categories,r.category);
+        const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px"}});
+        last42.forEach(key=>{
+          const checked=S.logs[key]&&S.logs[key][r.id],before=S.startDates[r.id]&&key<S.startDates[r.id];
+          grid.appendChild(h("div",{title:key,style:{aspectRatio:"1",background:before?"transparent":checked?"#2C2C2C":"#EAE5DE",opacity:before?"0.15":"1"}}));
+        });
+        content.appendChild(h("div",{style:{marginBottom:"20px"}},
+          h("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
+            h("div",{style:{width:"20px",height:"20px",background:cat.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px"}},cat.icon),
+            h("span",{style:{fontSize:"13px"}},r.name),
+            h("span",{style:{fontSize:"11px",color:"#AAA",marginLeft:"auto"}},`Jour ${s.totalDays} — ${s.rateTotal}%`)
+          ),grid
+        ));
+      });
+    }
+    if(archivedRoutines.length>0){
+      content.appendChild(h("div",{style:{fontSize:"11px",textTransform:"uppercase",letterSpacing:"0.1em",color:"#888",marginBottom:"8px",marginTop:activeRoutines.length>0?"20px":"0"}},"Archivées"));
+      archivedRoutines.forEach(r=>{
+        const s=computeStats(S.logs,r.id,S.startDates[r.id]);
+        content.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #EAE5DE",fontSize:"13px"}},
+          h("span",{},r.name),h("span",{style:{color:"#888",fontSize:"12px"}},`${s.totalDays}j — ${s.rateTotal}%`)
+        ));
+      });
+    }
+    if(activeRoutines.length===0&&archivedRoutines.length===0)
+      content.appendChild(h("div",{style:{color:"#BBB",fontSize:"13px",textAlign:"center",padding:"40px 0"}},"Aucune donnée encore."));
+  }
+
+  // QUEUE
+  if(S.view==="queue"){
+    if(activeRoutines.length>0){
+      content.appendChild(h("div",{style:{fontSize:"11px",textTransform:"uppercase",letterSpacing:"0.1em",color:"#888",marginBottom:"8px"}},"Actives"));
+      activeRoutines.forEach(r=>{
+        const cat=getCat(S.categories,r.category);
+        const s=computeStats(S.logs,r.id,S.startDates[r.id]);
+        content.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"10px 12px",background:"#2C2C2C",color:"#F5F0EB",marginBottom:"4px"}},
+          h("div",{style:{width:"22px",height:"22px",background:cat.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",flexShrink:"0"}},cat.icon),
+          h("div",{style:{flex:"1",minWidth:"0"}},
+            h("div",{style:{fontSize:"13px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},r.name),
+            h("div",{style:{fontSize:"10px",opacity:"0.5",marginTop:"1px"}},`Jour ${s.totalDays} · ${r.freq}`)
+          ),
+          h("button",{style:{background:"none",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)",fontSize:"10px",padding:"3px 7px",cursor:"pointer",fontFamily:"Georgia,serif",whiteSpace:"nowrap"},onClick:()=>deactivateToQueue(r.id)},"↓ File")
+        ));
+      });
+      content.appendChild(h("div",{style:{height:"16px"}}));
+    }
+    content.appendChild(h("div",{style:{fontSize:"11px",textTransform:"uppercase",letterSpacing:"0.1em",color:"#888",marginBottom:"8px"}},"En attente"));
+    if(S.queue.length===0)content.appendChild(h("div",{style:{color:"#BBB",fontSize:"13px",marginBottom:"16px"}},"File vide."));
+    S.queue.forEach((id,idx)=>{
+      const r=S.routines.find(x=>x.id===id);if(!r)return;
+      const cat=getCat(S.categories,r.category);
+      content.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"12px 0",borderBottom:"1px solid #EAE5DE"}},
+        h("div",{style:{width:"28px",height:"28px",background:cat.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",flexShrink:"0"}},cat.icon),
+        h("div",{style:{flex:"1",minWidth:"0"}},
+          h("div",{style:{fontSize:"14px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},r.name),
+          h("div",{style:{fontSize:"11px",color:"#AAA",marginTop:"2px"}},`${r.freq} · ${cat.name}`)
+        ),
+        h("button",{style:{background:"none",border:"none",fontSize:"15px",cursor:"pointer",color:"#BBB",padding:"4px"},onClick:()=>setModal({type:"editQueueItem",id})},"✎"),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:"2px"}},
+          h("button",{style:{background:"none",border:"none",fontSize:"12px",cursor:idx===0?"default":"pointer",color:idx===0?"#DDD":"#666"},disabled:idx===0,onClick:()=>moveUp(id)},"▲"),
+          h("button",{style:{background:"none",border:"none",fontSize:"12px",cursor:idx===S.queue.length-1?"default":"pointer",color:idx===S.queue.length-1?"#DDD":"#666"},disabled:idx===S.queue.length-1,onClick:()=>moveDown(id)},"▼")
+        ),
+        h("button",{style:{background:"#2C2C2C",color:"#F5F0EB",border:"none",padding:"6px 10px",fontSize:"11px",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"Georgia,serif"},onClick:()=>{activateRoutine(id);setView("today");}},"Activer")
+      ));
+    });
+    content.appendChild(h("button",{style:{width:"100%",marginTop:"16px",padding:"12px",background:"none",border:"1.5px dashed #DDD8D0",fontSize:"13px",color:"#AAA",cursor:"pointer",letterSpacing:"0.06em",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"addRoutine"})},"+ Ajouter une routine"));
+  }
+
+  app.appendChild(content);
+
+  // Modals
+  const m=S.modal;
+  if(!m)return;
+  let modal=null;
+
+  if(m.type==="pickDisruption"){
+    const rows=DISRUPTION_REASONS.map(reason=>
+      h("button",{style:{width:"100%",padding:"12px 14px",background:"none",border:"none",borderBottom:"1px solid #EAE5DE",fontSize:"14px",textAlign:"left",cursor:"pointer",fontFamily:"Georgia,serif",color:"#2C2C2C"},onClick:()=>{markDisruption(m.id,reason);setModal(null);}},reason)
+    );
+    modal=renderModal("Type de perturbation",rows,()=>setModal(null));
+  }
+  if(m.type==="editRoutine"){
+    const r=S.routines.find(x=>x.id===m.id);
+    if(r)modal=renderModal("Modifier la routine",renderRoutineForm(r,"Enregistrer",(f)=>{updateRoutine(m.id,f);setModal(null);},()=>setModal(null)),()=>setModal(null));
+  }
+  if(m.type==="addRoutine"){
+    modal=renderModal("Nouvelle routine",renderRoutineForm(null,"Ajouter à la file",(f)=>{setModal(null);setView("queue");addNewRoutine(f);},()=>setModal(null)),()=>setModal(null));
+  }
+  if(m.type==="editQueueItem"){
+    const r=S.routines.find(x=>x.id===m.id);
+    if(r){
+      const els=renderRoutineForm(r,"Enregistrer",(f)=>{updateRoutine(m.id,f);setModal(null);},()=>setModal(null));
+      els.push(h("button",{style:{width:"100%",marginTop:"10px",padding:"10px",background:"none",border:"1.5px solid #D4B8A8",fontSize:"12px",color:"#C47A5A",cursor:"pointer",letterSpacing:"0.06em",fontFamily:"Georgia,serif"},onClick:()=>{removeFromQueue(m.id);setModal(null);}},"Retirer de la file"));
+      modal=renderModal("Modifier la routine",els,()=>setModal(null));
+    }
+  }
+  if(m.type==="manageCategories"){
+    const rows=S.categories.map(c=>h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"10px 0",borderBottom:"1px solid #EAE5DE"}},
+      h("div",{style:{width:"28px",height:"28px",background:c.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",flexShrink:"0"}},c.icon),
+      h("span",{style:{flex:"1",fontSize:"13px"}},c.name),
+      h("button",{style:{background:"none",border:"none",fontSize:"13px",cursor:"pointer",color:"#BBB",padding:"4px"},onClick:()=>setModal({type:"editCategory",id:c.id})},"✎"),
+      !DEFAULT_CATS.find(d=>d.id===c.id)?h("button",{style:{background:"none",border:"none",fontSize:"13px",cursor:"pointer",color:"#C47A5A",padding:"4px"},onClick:()=>deleteCategory(c.id)},"✕"):null
+    ));
+    rows.push(h("button",{style:{width:"100%",marginTop:"16px",padding:"12px",background:"none",border:"1.5px dashed #DDD8D0",fontSize:"13px",color:"#AAA",cursor:"pointer",letterSpacing:"0.06em",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"addCategory"})},"+ Nouvelle catégorie"));
+    modal=renderModal("Catégories",rows,()=>setModal(null));
+  }
+  if(m.type==="addCategory"){
+    modal=renderModal("Nouvelle catégorie",renderCategoryForm(null,"Créer la catégorie",(f)=>{addCategory(f);setModal({type:"manageCategories"});},()=>setModal({type:"manageCategories"})),()=>setModal(null));
+  }
+  if(m.type==="editCategory"){
+    const c=S.categories.find(x=>x.id===m.id);
+    if(c)modal=renderModal("Modifier la catégorie",renderCategoryForm(c,"Enregistrer",(f)=>{updateCategory(m.id,f);setModal({type:"manageCategories"});},()=>setModal({type:"manageCategories"})),()=>setModal(null));
+  }
+  if(modal)app.appendChild(modal);
+}
+
+render();
+</script>
+</body>
+</html>
