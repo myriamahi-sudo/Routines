@@ -239,11 +239,12 @@ function renderActiveCard(r){
         h("span",{style:{color:stats.rate28!==null&&stats.rate28>=85?"#2C2C2C":"#AAA"}},stats.rate28!==null?`${stats.rate28}% (28j)`:`${Math.min(stats.totalDays,27)}/28j`),
         h("span",{style:{color:dis>=1?"#2C2C2C":"#AAA"}},`⚡ ${dis} perturbation${dis>1?"s":""}`)
       ),
-      dis>0?h("div",{style:{marginBottom:"10px"}},
-        ...(S.disruptionDetails[r.id]||[]).map(d=>
-          h("div",{style:{fontSize:"11px",color:"#AAA",marginBottom:"2px"}},`· ${d.reason} (${d.date})`)
-        )
-      ):null,
+      (()=>{
+        if(!dis)return null;
+        const wrap=h("div",{style:{marginBottom:"10px"}});
+        (S.disruptionDetails[r.id]||[]).forEach(d=>wrap.appendChild(h("div",{style:{fontSize:"11px",color:"#AAA",marginBottom:"2px"}},`· ${d.reason} (${d.date})`)));
+        return wrap;
+      })(),
       h("div",{style:{display:"flex",gap:"6px"}},
         h("button",{style:{flex:"1",padding:"7px",background:"none",border:"1.5px solid #DDD8D0",fontSize:"11px",cursor:"pointer",color:"#888",fontFamily:"Georgia,serif"},onClick:()=>setModal({type:"pickDisruption",id:r.id})},"+ Perturbation"),
         h("button",{style:{padding:"7px 10px",background:"none",border:`1.5px solid ${dis?"#DDD8D0":"#EEE"}`,fontSize:"13px",cursor:dis?"pointer":"default",color:dis?"#888":"#CCC",fontFamily:"Georgia,serif"},disabled:!dis,onClick:()=>undoDisruption(r.id)},"↩"),
@@ -382,6 +383,7 @@ function render(){
     );
     modal=renderModal("Type de perturbation",rows,()=>setModal(null));
   }
+  if(m.type==="editRoutine"){
     const r=S.routines.find(x=>x.id===m.id);
     if(r)modal=renderModal("Modifier la routine",renderRoutineForm(r,"Enregistrer",(f)=>{updateRoutine(m.id,f);setModal(null);},()=>setModal(null)),()=>setModal(null));
   }
